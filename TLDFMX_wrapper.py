@@ -12,7 +12,6 @@ def handle_error(DFMfunc):
 
     @wraps(DFMfunc)
     def handle(*args, **kwargs):
-        print()
         ret = DFMfunc(*args, **kwargs)
         if ret < 0:
             pBuf = create_string_buffer(512)
@@ -29,22 +28,26 @@ VI_TRUE = 1
 VI_FALSE = 0
 
 device_info = namedtuple("device_info", "instrumentName serialNumber deviceAvailable resourceName", )
-params = namedtuple("params", "minimumZernikeAmplitude maximumZernikeAmplitude maximumZernikeCount measurementSteps relaxSteps")
+params = namedtuple("params",
+                    "minimumZernikeAmplitude maximumZernikeAmplitude maximumZernikeCount measurementSteps relaxSteps")
 
 
 class DM:
-    def __init__(self, resourceName=''):
+    def __init__(self, device_num):
+        device_info = self.device_info(device_num)
+        resourceName = device_info.resourceName
         # initiate the instrument driver session
         self.instrumentHandle = c_long(0)  # ViSession is long
         # print(instrumentHandle)
+        print(f"Connecting to {resourceName}")
         handle_error(dfmx.TLDFMX_init)(resourceName, VI_TRUE, VI_TRUE, byref(self.instrumentHandle))
         # file:///C:/Program%20Files%20(x86)/IVI%20Foundation/VISA/WinNT/TLDFMX/Manual/TLDFMX_files/FunctTLDFMX_init.html
         print("InstrumentHandle: ", self.instrumentHandle)
 
-    @classmethod
-    def from_device_num(cls, device_num=0):
-        device_info = cls.device_info(device_num)
-        return cls(device_info.resourceName)
+    # @classmethod
+    # def from_device_num(cls, device_num=0):
+    #     device_info = cls.device_info(device_num)
+    #     return cls.__init__(device_info.resourceName)
 
     @staticmethod
     def device_info(device_num=0):
@@ -54,7 +57,8 @@ class DM:
         serialNumber = create_string_buffer(28)
         deviceAvailable = c_bool()
         resourceName = create_string_buffer(256)
-        dfm.TLDFM_get_device_information(VI_NULL, device_num, byref(manufacturer), byref(instrumentName), byref(serialNumber),
+        dfm.TLDFM_get_device_information(VI_NULL, device_num, byref(manufacturer), byref(instrumentName),
+                                         byref(serialNumber),
                                          byref(deviceAvailable), byref(resourceName))
         return device_info(instrumentName.value, serialNumber.value, deviceAvailable.value, resourceName.value)
         # print(instrumentName.value)
@@ -68,8 +72,8 @@ class DM:
         ret = handle_error(dfm.TLDFM_get_device_count)(VI_NULL, byref(dev_num))  # Get the number of devices available
         return dev_num.value
 
-    def __enter__(self, device_num):
-        return self.from_device_num(device_num)
+    def __enter__(self, device_num=0):
+        return self.from_device_num(device_num=0)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
@@ -108,7 +112,9 @@ class DM:
 
     def calculate_single_zernicke_pattern(self, zernicke_mode, zernicke_amp):
         mirrorPattern = (c_double * 40)(0)
-        ret = handle_error(dfmx.TLDFMX_calculate_single_zernike_pattern)(self.instrumentHandle, c_uint(zernicke_mode), c_double(zernicke_amp),
+        # c_uint(zernicke_mode)
+        ret = handle_error(dfmx.TLDFMX_calculate_single_zernike_pattern)(self.instrumentHandle, 0x00000004,
+                                                                         c_double(zernicke_amp),
                                                                          byref(mirrorPattern))
         return mirrorPattern
 
@@ -150,7 +156,8 @@ class DM:
 
         mirrorPattern = (c_double * 40)(0)
         ret = handle_error(dfmx.TLDFMX_calculate_zernike_pattern)(self.instrumentHandle, zernikes, z_amps,
-                                                                  byref(mirrorPattern))  # multiple desired 'Zernike Amplitude'
+                                                                  byref(
+                                                                      mirrorPattern))  # multiple desired 'Zernike Amplitude'
         return mirrorPattern
 
     def set_segment_voltages(self, mirrorPattern):
@@ -179,10 +186,10 @@ class DM:
 
 
 if __name__ == "__main__":
-    from matplotlib import pyplot as plt
+    # from matplotlib import pyplot as plt
     import time
 
-    duration = 20
+    duration = 1
     updates_per_sec = 10
     timebase = np.linspace(0, duration, duration * updates_per_sec)
     waveform = (timebase % 1) - 0.5
@@ -192,10 +199,13 @@ if __name__ == "__main__":
     # plt.show()
 
     print('starting waveform loop')
-    with DM.from_device_num(0) as dm:
-        for wavepoint in waveform:
-            mirror_pattern = dm.calculate_single_zernicke_pattern(0, timebase[wavepoint])
-            dm.set_segment_voltages(mirror_pattern)
-            time.sleep(1 / updates_per_sec)
-            print('.', end='')
+    # with DM() as dm:
+    dm = DM(0)
+    for wavepoint in waveform:
+        # print(wavepoint)
+        mirror_pattern = dm.calculate_single_zernicke_pattern(7, wavepoint)
+        dm.set_segment_voltages(mirror_pattern)
+        time.sleep(1 / updates_per_sec)
+        print('.', end='')
+    dm.close()
     print("finished")
