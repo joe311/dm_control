@@ -72,12 +72,6 @@ class DM:
         ret = handle_error(dfm.TLDFM_get_device_count)(VI_NULL, byref(dev_num))  # Get the number of devices available
         return dev_num.value
 
-    def __enter__(self, device_num=0):
-        return self.from_device_num(device_num=0)
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
     def close(self):
         return handle_error(dfmx.TLDFMX_close(self.instrumentHandle))
 
@@ -192,14 +186,20 @@ class DM:
         return tiltCount.value
 
     def set_tilt(self, amplitude, angle):
+        # TiltAngle = 0  # Range: -180 - +180 (180:left -90:down, 0:right, +90:up)
         handle_error(dfm.TLDFM_set_tilt_amplitude_angle)(self.instrumentHandle, amplitude, angle)
 
 
-#
-# # Tilt
-# print('Playing with tilt')
-# TiltAmplitude = 0  # Range: 0.0 - 1.0
-# TiltAngle = 0  # Range: -180 - +180 (180:left -90:down, 0:right, +90:up)
+class DM_Context:
+    def __init__(self, device_num=0):
+        self.device_num = device_num
+
+    def __enter__(self):
+        self._dm = DM(device_num=self.device_num)
+        return self._dm
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self._dm.close()
 
 
 if __name__ == "__main__":
@@ -216,13 +216,14 @@ if __name__ == "__main__":
     # plt.show()
 
     print('starting waveform loop')
-    # with DM() as dm:
-    dm = DM(0)
-    for wavepoint in waveform:
-        # print(wavepoint)
-        mirror_pattern = dm.calculate_single_zernicke_pattern(7, wavepoint)
-        dm.set_segment_voltages(mirror_pattern)
-        time.sleep(1 / updates_per_sec)
-        print('.', end='')
+    with DM_Context(0) as dm:
+        print(dm)
+        # dm = DM(0)
+        for wavepoint in waveform:
+            # print(wavepoint)
+            mirror_pattern = dm.calculate_single_zernicke_pattern(7, wavepoint)
+            dm.set_segment_voltages(mirror_pattern)
+            time.sleep(1 / updates_per_sec)
+            print('.', end='')
     dm.close()
     print("finished")
