@@ -106,9 +106,8 @@ class DM:
 
     def calculate_single_zernicke_pattern(self, zernicke_mode, zernicke_amp):
         mirrorPattern = (c_double * 40)(0)
-        # c_uint(zernicke_mode)
-        # TODO fix bitflags for modes
-        ret = handle_error(dfmx.TLDFMX_calculate_single_zernike_pattern)(self.instrumentHandle, 0x00000004,
+        bitflag = self.zernicke_mode_bitflags(zernicke_mode)
+        ret = handle_error(dfmx.TLDFMX_calculate_single_zernike_pattern)(self.instrumentHandle, bitflag,
                                                                          c_double(zernicke_amp),
                                                                          byref(mirrorPattern))
         return mirrorPattern
@@ -145,34 +144,25 @@ class DM:
                     0x00000800]  # Z15
         return bitflags[zernicke_mode]
 
-    def calculate_zernicke_pattern(self):
+    def calculate_zernicke_pattern(self, zernick_mode_amplitudes):
         # mirror voltage pattern Zernike
         zernikes = 0xFFFFFFFF  # All zernicke mode (z4-z15) bitflag
         # z_amps =  # -1 to 1 range??
-        z4 = 0  # Ast45
-        z5 = 0  # Defocus
-        z6 = 0  # Ast0
-        z7 = 0  # Trefoil Y
-        z8 = 0  # Coma X
-        z9 = 0  # Coma Y
-        z10 = 0  # Trefoil X
-        z11 = 0  # TetY
-        z12 = 0  # SAstY
-        z13 = 0  # Spherical
-        z14 = 0  # SAstX
-        z15 = 0  # TetX
+
         empty_amps = c_double * 12  # ViReal64 array
-        z_amps = empty_amps(*[z4, z5, z6, z7, z8, z9, z10, z11, z12, z13, z14, z15])
-        # z_amps = empty_amps(1)
+        z_amps = empty_amps(*zernick_mode_amplitudes)
 
         mirrorPattern = (c_double * 40)(0)
         ret = handle_error(dfmx.TLDFMX_calculate_zernike_pattern)(self.instrumentHandle, zernikes, z_amps,
-                                                                  byref(
-                                                                      mirrorPattern))  # multiple desired 'Zernike Amplitude'
+                                                                  byref(mirrorPattern))
         return mirrorPattern
 
     def set_segment_voltages(self, mirrorPattern):
         ret = handle_error(dfm.TLDFM_set_segment_voltages)(self.instrumentHandle, mirrorPattern)
+        return ret
+
+    def set_segment_voltage_setpoints(self, mirrorPattern):
+        ret = handle_error(dfmx.TLDFMX_set_voltages_setpoint)(self.instrumentHandle, mirrorPattern)
         return ret
 
     @property
@@ -217,13 +207,39 @@ if __name__ == "__main__":
 
     print('starting waveform loop')
     with DM_Context(0) as dm:
-        print(dm)
-        # dm = DM(0)
-        for wavepoint in waveform:
-            # print(wavepoint)
-            mirror_pattern = dm.calculate_single_zernicke_pattern(7, wavepoint)
-            dm.set_segment_voltages(mirror_pattern)
-            time.sleep(1 / updates_per_sec)
-            print('.', end='')
-    dm.close()
+        z4 = 0  # Ast45
+        z5 = .2  # Defocus
+        z6 = 0  # Ast0
+        z7 = 0  # Trefoil Y
+        z8 = 0  # Coma X
+        z9 = 0  # Coma Y
+        z10 = .2  # Trefoil X
+        z11 = 0  # TetY
+        z12 = 0  # SAstY
+        z13 = 0  # Spherical
+        z14 = 0  # SAstX
+        z15 = 0  # TetX
+
+        mirror_pattern = dm.calculate_zernicke_pattern([z4, z5, z6, z7, z8, z9, z10, z11, z12, z13, z14, z15])
+        print([i for i in mirror_pattern])
+        dm.set_segment_voltage_setpoints(mirror_pattern)
+        dm.set_segment_voltages(mirror_pattern)
+
+        z6 = 1
+        mirror_pattern = dm.calculate_zernicke_pattern([z4, z5, z6, z7, z8, z9, z10, z11, z12, z13, z14, z15])
+        print('test')
+        print([i for i in mirror_pattern])
+        print('test2')
+        mirror_pattern = dm.calculate_zernicke_pattern([0, ] * 12)
+        dm.set_segment_voltage_setpoints(mirror_pattern)
+        dm.set_segment_voltages(mirror_pattern)
+
+        # print(dm)
+        # # dm = DM(0)
+        # for wavepoint in waveform:
+        #     # print(wavepoint)
+        #     mirror_pattern = dm.calculate_single_zernicke_pattern(7, wavepoint)
+        #     dm.set_segment_voltages(mirror_pattern)
+        #     time.sleep(1 / updates_per_sec)
+        #     print('.', end='')
     print("finished")
