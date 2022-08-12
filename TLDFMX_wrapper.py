@@ -113,6 +113,7 @@ class DM:
     def calculate_single_zernicke_pattern(self, zernicke_mode, zernicke_amp):
         mirrorPattern = (c_double * 40)(0)
         # c_uint(zernicke_mode)
+        #TODO fix bitflags for modes
         ret = handle_error(dfmx.TLDFMX_calculate_single_zernike_pattern)(self.instrumentHandle, 0x00000004,
                                                                          c_double(zernicke_amp),
                                                                          byref(mirrorPattern))

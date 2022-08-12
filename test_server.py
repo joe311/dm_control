@@ -24,5 +24,6 @@ address = bytesAddressPair[1]
 clientMsg = "Message from Client:{}".format(message)
 clientIP = "Client IP Address:{}".format(address)
 
+float(message)
 print(clientMsg)
 print(clientIP)
