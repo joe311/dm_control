@@ -13,7 +13,7 @@ function dm_callback(src,evt,varargin)
     f = log(abs(fftshift(fft2(image)))+1);
     pol = ImToPolar(f, 0, .8, 300, 50);
     meanpol = mean(pol,2);
-    metric = mean(meanpol(10:40));
+    metric = mean(meanpol(14:35));
 
     figure(1022);
     subplot(1,2,1);
